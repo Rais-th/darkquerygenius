@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { Loader2, Send } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
 interface QueryResult {
   [key: string]: any;
@@ -27,21 +28,19 @@ export function QueryInterface() {
 
     setIsLoading(true);
     try {
-      const response = await fetch("/api/query-data", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt }),
+      const { data, error } = await supabase.functions.invoke('query-data', {
+        body: { prompt },
       });
 
-      if (!response.ok) throw new Error("Failed to execute query");
+      if (error) throw error;
 
-      const data = await response.json();
       setResults(data.results);
       toast({
         title: "Query executed successfully",
         description: `Found ${data.results.length} results`,
       });
     } catch (error) {
+      console.error('Query error:', error);
       toast({
         title: "Error executing query",
         description: error.message,

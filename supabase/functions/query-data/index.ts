@@ -1,21 +1,23 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import "https://deno.land/x/xhr@0.1.0/mod.ts"
+import "https://deno.land/x/xhr@0.1.0/mod.ts";
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
+};
 
 serve(async (req) => {
+  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+    return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const { prompt } = await req.json()
+    const { prompt } = await req.json();
+    console.log('Received prompt:', prompt);
 
-    // Create OpenAI completion to convert natural language to SQL
+    // Get OpenAI to convert natural language to SQL
     const openAIResponse = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -42,36 +44,43 @@ serve(async (req) => {
           }
         ],
       }),
-    })
+    });
 
-    const sqlData = await openAIResponse.json()
-    const sqlQuery = sqlData.choices[0].message.content
+    const sqlData = await openAIResponse.json();
+    const sqlQuery = sqlData.choices[0].message.content;
+    console.log('Generated SQL query:', sqlQuery);
 
-    // Execute the SQL query
+    // Execute the SQL query using Supabase
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    )
+    );
 
     const { data, error } = await supabaseClient
       .from('shipping_history')
       .select()
-      .limit(100)
+      .limit(100);
 
-    if (error) throw error
+    if (error) {
+      console.error('Supabase query error:', error);
+      throw error;
+    }
+
+    console.log('Query results:', data);
 
     return new Response(
       JSON.stringify({ results: data }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
-    )
+    );
 
   } catch (error) {
+    console.error('Error in query-data function:', error);
     return new Response(
       JSON.stringify({ error: error.message }),
       { 
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       },
-    )
+    );
   }
-})
+});
